@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#b45309">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="酒量ログ">
+<title>酒量ログ</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1 id="title">記録</h1>
+</header>
+
+<main>
+  <!-- 記録 -->
+  <section id="view-record" class="view">
+    <div id="morning-banner" class="banner" hidden></div>
+
+    <div class="date-bar">
+      <button id="prev-day" class="icon-btn" aria-label="前の日">◀</button>
+      <div class="date-label">
+        <div id="date-text" class="date-main"></div>
+        <div id="date-sub" class="date-sub"></div>
+      </div>
+      <button id="next-day" class="icon-btn" aria-label="次の日">▶</button>
+    </div>
+
+    <div class="card">
+      <h2>飲んだお酒</h2>
+      <ul id="drink-list" class="drink-list"></ul>
+      <div class="day-total">
+        <span>この日の合計</span>
+        <strong id="day-grams">0 g</strong>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>翌朝の体調</h2>
+      <div id="cond-stars" class="stars" role="radiogroup" aria-label="体調"></div>
+      <div class="cond-legend"><span>1 最悪</span><span>5 快調</span></div>
+      <textarea id="cond-memo" rows="3" placeholder="例: 少し頭が重い、よく眠れた"></textarea>
+    </div>
+  </section>
+
+  <!-- 履歴 -->
+  <section id="view-history" class="view" hidden>
+    <ul id="history-list" class="history-list"></ul>
+  </section>
+
+  <!-- 10日集計 -->
+  <section id="view-summary" class="view" hidden>
+    <div id="current-period" class="card"></div>
+    <div class="card">
+      <h2>Claude からのアドバイス</h2>
+      <div id="ai-advice"></div>
+      <button id="ai-ask" class="btn primary">Claude にアドバイスをもらう</button>
+      <p id="ai-status" class="note"></p>
+      <details id="ai-history" class="ai-history" hidden>
+        <summary>これまでのアドバイス</summary>
+        <div id="ai-history-list"></div>
+      </details>
+      <details class="ai-history">
+        <summary>通信なしの簡易チェック</summary>
+        <ul id="advice" class="advice"></ul>
+      </details>
+      <p class="note">医療上の判断ではありません。記録（メモを含む）は Apps Script を通して Claude に送られます。</p>
+    </div>
+    <div class="card">
+      <h2>10日ごとの合計</h2>
+      <div class="chart-wrap"><svg id="period-chart" role="img" aria-label="10日ごとの純アルコール量"></svg></div>
+      <p class="note">点線は 1日平均20g（10日で200g）の目安です。</p>
+    </div>
+    <div class="card">
+      <h2>期間ごとの記録</h2>
+      <div class="table-wrap"><table id="period-table"></table></div>
+      <p class="note">記録のない日は 0g（飲まなかった日）として計算します。</p>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section id="view-settings" class="view" hidden>
+    <div class="card">
+      <h2>記録開始日</h2>
+      <p class="note">この日から10日ごとに区切って集計します。</p>
+      <input type="date" id="start-date">
+    </div>
+
+    <div class="card">
+      <h2>お酒の種類</h2>
+      <p class="note">純アルコール量 = 量(ml) × 度数 × 0.8</p>
+      <ul id="drink-master" class="master-list"></ul>
+      <details class="add-drink">
+        <summary>お酒を追加する</summary>
+        <div class="row">
+          <label>名前<input id="new-name" placeholder="例: 焼酎ロック"></label>
+          <label style="flex:0 0 80px">単位<input id="new-unit" placeholder="杯"></label>
+        </div>
+        <div class="row">
+          <label>1単位に含まれるお酒の量 (ml)<input id="new-ml" type="number" inputmode="decimal" min="0" placeholder="例: 90"></label>
+          <label>度数 (%)<input id="new-abv" type="number" inputmode="decimal" min="0" max="100" step="0.5" placeholder="例: 25"></label>
+        </div>
+        <button id="add-drink" class="btn primary">追加</button>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Claude のアドバイス（Apps Script）</h2>
+      <p class="note">セットアップ手順で作った Apps Script の URL と合言葉を入れてください。</p>
+      <label class="field">URL<input id="gas-url" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec"></label>
+      <label class="field">合言葉<input id="gas-pass" type="password" autocomplete="off"></label>
+      <div class="row">
+        <button id="gas-save" class="btn">保存</button>
+        <button id="gas-ping" class="btn">接続を確認</button>
+      </div>
+      <p id="gas-status" class="note"></p>
+    </div>
+
+    <div class="card">
+      <h2>バックアップ</h2>
+      <p class="note">記録はこのスマホの中だけに保存されます。機種変更の前などに書き出してください。</p>
+      <div class="row">
+        <button id="export" class="btn">書き出す</button>
+        <label class="btn file-btn">読み込む<input id="import" type="file" accept="application/json,.json" hidden></label>
+      </div>
+    </div>
+    <p class="version">酒量ログ v0.4.0</p>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-view="record" class="active"><span class="tab-ico">🍺</span>記録</button>
+  <button data-view="history"><span class="tab-ico">📅</span>履歴</button>
+  <button data-view="summary"><span class="tab-ico">📊</span>10日集計</button>
+  <button data-view="settings"><span class="tab-ico">⚙️</span>設定</button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>
