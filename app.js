@@ -107,6 +107,7 @@ const $ = (id) => document.getElementById(id);
 const VIEWS = { record: '記録', history: '履歴', summary: '10日集計', settings: '設定' };
 let currentView = 'record';
 let currentDate = todayKey();
+let shownDate = null; // 記録画面の入力欄にいま表示している日付
 
 function showView(name) {
   currentView = name;
@@ -203,10 +204,13 @@ function renderRecord() {
     };
     stars.appendChild(b);
   }
+  // 入力中は書き換えない（カーソルが飛ぶため）。ただし日付を変えたときは、入力中でも必ずその日の内容にする
+  const dateChanged = shownDate !== currentDate;
   const memo = $('cond-memo');
-  if (document.activeElement !== memo) memo.value = day.memo || '';
+  if (dateChanged || document.activeElement !== memo) memo.value = day.memo || '';
   const note = $('day-note');
-  if (document.activeElement !== note) note.value = day.note || '';
+  if (dateChanged || document.activeElement !== note) note.value = day.note || '';
+  shownDate = currentDate;
 }
 
 function setCount(drink, count) {
