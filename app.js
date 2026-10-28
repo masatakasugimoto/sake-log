@@ -57,11 +57,11 @@ function save() {
 }
 
 function getDay(k) {
-  return state.days[k] || { items: [], cond: null, memo: '' };
+  return state.days[k] || { items: [], note: '', cond: null, memo: '' };
 }
 
 function putDay(k, day) {
-  if (day.items.length === 0 && !day.cond && !day.memo) delete state.days[k];
+  if (day.items.length === 0 && !day.note && !day.cond && !day.memo) delete state.days[k];
   else state.days[k] = day;
   save();
 }
@@ -205,6 +205,8 @@ function renderRecord() {
   }
   const memo = $('cond-memo');
   if (document.activeElement !== memo) memo.value = day.memo || '';
+  const note = $('day-note');
+  if (document.activeElement !== note) note.value = day.note || '';
 }
 
 function setCount(drink, count) {
@@ -228,6 +230,11 @@ $('next-day').onclick = () => { currentDate = addDays(currentDate, 1); renderRec
 $('cond-memo').addEventListener('input', (e) => {
   const d = getDay(currentDate);
   d.memo = e.target.value;
+  putDay(currentDate, d);
+});
+$('day-note').addEventListener('input', (e) => {
+  const d = getDay(currentDate);
+  d.note = e.target.value;
   putDay(currentDate, d);
 });
 
@@ -259,7 +266,8 @@ function renderHistory() {
         <span class="h-grams ${g > 0 ? '' : 'zero'}">${g > 0 ? fmt1(g) + ' g' : '休肝日'}</span>
       </div>
       ${items ? `<div class="h-detail">${esc(items)}</div>` : ''}
-      ${day.memo ? `<div class="h-detail">📝 ${esc(day.memo)}</div>` : ''}`;
+      ${day.note ? `<div class="h-detail">💬 ${esc(day.note)}</div>` : ''}
+      ${day.memo ? `<div class="h-detail">🌅 ${esc(day.memo)}</div>` : ''}`;
     li.onclick = () => { currentDate = k; showView('record'); };
     ul.appendChild(li);
   }
@@ -493,6 +501,7 @@ function buildLog() {
       date: k, weekday: WEEK[fromKey(k).getDay()], period: periodIndex(k) + 1,
       grams: Math.round(dayGrams(k) * 10) / 10,
       drinks: day.items.map((it) => `${it.name} ${it.count}${unitOf(it)}`),
+      comment: day.note || null,
       condition: day.cond || null, memo: day.memo || null,
     });
   }
