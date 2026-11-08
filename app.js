@@ -464,13 +464,32 @@ function loadConf() {
   try { return JSON.parse(localStorage.getItem(CONF_KEY)) || {}; } catch (e) { return {}; }
 }
 
+/**
+ * Apps Script の URL を整える。https:// が抜けていると、このアプリ自身（GitHub Pages）への
+ * 相対パスとして送られ 405 になるため補う。形が違えば理由つきでエラーにする
+ */
+function normalizeGasUrl(raw) {
+  let s = (raw || '').trim().replace(/\s+/g, '');
+  if (!s) throw new Error('設定画面で Apps Script の URL を入れてください');
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  s = s.replace(/^http:/i, 'https:');
+  if (/github\.io/i.test(s)) {
+    throw new Error('URL がこのアプリ自身のアドレスになっています。Apps Script のウェブアプリの URL（https://script.google.com/macros/s/…/exec）を入れてください');
+  }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(s)) {
+    throw new Error('Apps Script の URL の形が違います。https://script.google.com/macros/s/…/exec の形で、最後の /exec まで入れてください');
+  }
+  return s;
+}
+
 async function callApi(action, params = {}) {
   const conf = loadConf();
-  if (!conf.url || !conf.pass) throw new Error('設定画面で Apps Script の URL と合言葉を入れてください');
+  const url = normalizeGasUrl(conf.url);
+  if (!conf.pass) throw new Error('設定画面で合言葉を入れてください');
   let res;
   try {
     // text/plain にするのは、ブラウザの事前確認（CORS のプリフライト）を避けるため
-    res = await fetch(conf.url, {
+    res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action, passphrase: conf.pass, ...params }),
@@ -478,7 +497,7 @@ async function callApi(action, params = {}) {
   } catch (e) {
     throw new Error('通信できませんでした。電波の状態を確認してください');
   }
-  if (!res.ok) throw new Error(`Apps Script の応答がエラーでした（${res.status}）`);
+  if (!res.ok) throw new Error(`Apps Script（${new URL(url).host}）の応答がエラーでした（${res.status}）`);
   let data;
   try { data = await res.json(); } catch (e) {
     throw new Error('Apps Script の応答を読めませんでした。URL とデプロイの設定を確認してください');
@@ -653,12 +672,23 @@ $('start-date').addEventListener('change', (e) => {
   save();
 });
 
+/** 保存する。URL の形がおかしければ理由を返す（保存はする） */
 function saveConf() {
-  localStorage.setItem(CONF_KEY, JSON.stringify({ url: $('gas-url').value.trim(), pass: $('gas-pass').value.trim() }));
+  let url = $('gas-url').value.trim();
+  let problem = null;
+  try {
+    url = normalizeGasUrl(url);
+    $('gas-url').value = url; // https:// を補ったときなどは、直した形を見せる
+  } catch (e) {
+    problem = e.message;
+  }
+  localStorage.setItem(CONF_KEY, JSON.stringify({ url, pass: $('gas-pass').value.trim() }));
+  return problem;
 }
-$('gas-save').onclick = () => { saveConf(); $('gas-status').textContent = '保存しました'; };
+$('gas-save').onclick = () => { $('gas-status').textContent = saveConf() || '保存しました'; };
 $('gas-ping').onclick = async () => {
-  saveConf();
+  const problem = saveConf();
+  if (problem) { $('gas-status').textContent = problem; return; }
   $('gas-status').textContent = '確認しています…';
   try {
     const data = await callApi('ping');
