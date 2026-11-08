@@ -459,27 +459,34 @@ function renderAdvice(periods) {
 // URL と合言葉はバックアップに含めない（別のキーに保存）
 const CONF_KEY = 'sake-log-conf';
 const DETAIL_DAYS = 90; // Claude に日ごとの記録を渡す日数（それより前は期間ごとの集計だけ）
+// clasp で同じデプロイ ID に再デプロイしているので変わらない。合言葉がなければ何もできない
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxwuvJXgFqp-FRee0EPvBNjx9Ks6Ta8LVV2s1g113_LOEg430wKLqaDhEeV_x9uywnIWA/exec';
 
 function loadConf() {
-  try { return JSON.parse(localStorage.getItem(CONF_KEY)) || {}; } catch (e) { return {}; }
+  let conf = {};
+  try { conf = JSON.parse(localStorage.getItem(CONF_KEY)) || {}; } catch (e) { /* 初期値を使う */ }
+  let url = DEFAULT_GAS_URL;
+  try { if (conf.url) url = normalizeGasUrl(conf.url); } catch (e) { /* 保存済みの URL が使えない形なら初期値に戻す */ }
+  return { url, pass: conf.pass || '' };
 }
 
 /**
- * Apps Script の URL を整える。https:// が抜けていると、このアプリ自身（GitHub Pages）への
- * 相対パスとして送られ 405 になるため補う。形が違えば理由つきでエラーにする
+ * Apps Script の URL を整える。…/macros/s/<デプロイ ID>/ を含んでいれば、末尾や前後が違っても
+ * …/exec の形に直す。Safari で URL を開いた後のアドレス（googleusercontent）や、
+ * このアプリ自身の URL を入れると 405 になるので、理由つきでエラーにする
  */
 function normalizeGasUrl(raw) {
-  let s = (raw || '').trim().replace(/\s+/g, '');
+  const s = (raw || '').trim().replace(/\s+/g, '');
   if (!s) throw new Error('設定画面で Apps Script の URL を入れてください');
-  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
-  s = s.replace(/^http:/i, 'https:');
+  const m = s.match(/script\.google\.com\/(?:a\/[^/]+\/)?macros\/(?:u\/\d+\/)?s\/([\w-]{20,})/);
+  if (m) return `https://script.google.com/macros/s/${m[1]}/exec`;
+  if (/googleusercontent/i.test(s)) {
+    throw new Error('ブラウザで開いた後のアドレス（googleusercontent）が入っています。URL の欄を空にして保存すると、最初から用意している URL に戻ります');
+  }
   if (/github\.io/i.test(s)) {
-    throw new Error('URL がこのアプリ自身のアドレスになっています。Apps Script のウェブアプリの URL（https://script.google.com/macros/s/…/exec）を入れてください');
+    throw new Error('URL がこのアプリ自身のアドレスになっています。URL の欄を空にして保存すると、最初から用意している URL に戻ります');
   }
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(s)) {
-    throw new Error('Apps Script の URL の形が違います。https://script.google.com/macros/s/…/exec の形で、最後の /exec まで入れてください');
-  }
-  return s;
+  throw new Error('Apps Script の URL の形が違います。URL の欄を空にして保存すると、最初から用意している URL に戻ります');
 }
 
 async function callApi(action, params = {}) {
@@ -674,11 +681,11 @@ $('start-date').addEventListener('change', (e) => {
 
 /** 保存する。URL の形がおかしければ理由を返す（保存はする） */
 function saveConf() {
-  let url = $('gas-url').value.trim();
+  let url = $('gas-url').value.trim() || DEFAULT_GAS_URL; // 空なら最初から用意している URL に戻す
   let problem = null;
   try {
     url = normalizeGasUrl(url);
-    $('gas-url').value = url; // https:// を補ったときなどは、直した形を見せる
+    $('gas-url').value = url; // 形を直したときは、直した形を見せる
   } catch (e) {
     problem = e.message;
   }
